@@ -10,6 +10,7 @@
 #include "../include/StringUtil.h"
 #include "../resource.h"
 
+#pragma execution_character_set("utf-8")
 #pragma comment(lib, "comctl32.lib")
 
 using namespace gost;
