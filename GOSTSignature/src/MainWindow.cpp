@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <algorithm>
 #include "../include/GOSTSigner.h"
 #include "../include/StringUtil.h"
 #include "../resource.h"
@@ -13,13 +14,34 @@
 
 using namespace gost;
 
-LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
-void OnCreate(HWND hwnd);
-void OnCommand(HWND hwnd, WPARAM wParam);
+const wchar_t MENU_CLASS_NAME[] = L"GOSTMenuWindow";
+const wchar_t SIGN_CLASS_NAME[] = L"GOSTSignatureWindow";
+const wchar_t CREATE_USER_CLASS[] = L"GOSTCreateUserWindow";
+const wchar_t SELECT_USER_CLASS[] = L"GOSTSelectUserWindow";
+const wchar_t KEY_WINDOW_CLASS[] = L"GOSTKeyWindow";
+
+LRESULT CALLBACK MenuWndProc(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK SignWndProc(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK CreateUserWndProc(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK SelectUserWndProc(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK KeyWndProc(HWND, UINT, WPARAM, LPARAM);
+
+void SignOnCreate(HWND hwnd);
+void SignOnCommand(HWND hwnd, WPARAM wParam);
 void BrowseFile(HWND hwnd);
 void UpdateSignature(HWND hwnd);
 void SaveSignature(HWND hwnd);
 void ShowSettings(HWND hwnd);
+void UpdateActiveUserLabel(HWND hwnd);
+void RefreshUserList(HWND hwnd, int controlId);
+void SyncKeyFields(HWND hwnd);
+
+HWND g_signatureWindow = nullptr;
+std::vector<std::wstring> g_users = { L"Администратор" };
+std::wstring g_activeUser = L"Не выбран";
+std::wstring g_savedPrivateKey;
+std::wstring g_savedPublicKey;
+HINSTANCE g_hInstance = nullptr;
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
@@ -29,39 +51,54 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     INITCOMMONCONTROLSEX icc{ sizeof(INITCOMMONCONTROLSEX), ICC_WIN95_CLASSES };
     InitCommonControlsEx(&icc);
 
-    const wchar_t CLASS_NAME[] = L"GOSTSignatureWindow";
+    g_hInstance = hInstance;
 
     WNDCLASSEXW wcex{};
     wcex.cbSize = sizeof(WNDCLASSEX);
     wcex.style = CS_HREDRAW | CS_VREDRAW;
-    wcex.lpfnWndProc = WndProc;
     wcex.hInstance = hInstance;
     wcex.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
     wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
-    wcex.lpszClassName = CLASS_NAME;
 
+    wcex.lpfnWndProc = MenuWndProc;
+    wcex.lpszClassName = MENU_CLASS_NAME;
     RegisterClassExW(&wcex);
 
-    HWND hWnd = CreateWindowExW(
+    wcex.lpfnWndProc = SignWndProc;
+    wcex.lpszClassName = SIGN_CLASS_NAME;
+    RegisterClassExW(&wcex);
+
+    wcex.lpfnWndProc = CreateUserWndProc;
+    wcex.lpszClassName = CREATE_USER_CLASS;
+    RegisterClassExW(&wcex);
+
+    wcex.lpfnWndProc = SelectUserWndProc;
+    wcex.lpszClassName = SELECT_USER_CLASS;
+    RegisterClassExW(&wcex);
+
+    wcex.lpfnWndProc = KeyWndProc;
+    wcex.lpszClassName = KEY_WINDOW_CLASS;
+    RegisterClassExW(&wcex);
+
+    HWND hMenuWnd = CreateWindowExW(
         0,
-        CLASS_NAME,
-        L"ГОСТ 34.10 ЭЦП - Настраиваемая демо",
+        MENU_CLASS_NAME,
+        L"ГОСТ 34.10 ЭЦП - Главное меню",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-        CW_USEDEFAULT, 0, 840, 480,
+        CW_USEDEFAULT, 0, 520, 300,
         nullptr,
         nullptr,
         hInstance,
-        nullptr
-    );
+        nullptr);
 
-    if (!hWnd)
+    if (!hMenuWnd)
     {
         return FALSE;
     }
 
-    ShowWindow(hWnd, nCmdShow);
-    UpdateWindow(hWnd);
+    ShowWindow(hMenuWnd, nCmdShow);
+    UpdateWindow(hMenuWnd);
 
     MSG msg;
     while (GetMessage(&msg, nullptr, 0, 0))
@@ -84,12 +121,18 @@ HWND AddEdit(HWND hwnd, int id, int x, int y, int w, int h, DWORD extraStyle = 0
         x, y, w, h, hwnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)), nullptr, nullptr);
 }
 
-void OnCreate(HWND hwnd)
+HWND AddButton(HWND hwnd, int id, int x, int y, int w, int h, const wchar_t* text, DWORD style = BS_PUSHBUTTON)
+{
+    return CreateWindowW(L"BUTTON", text, WS_CHILD | WS_VISIBLE | style, x, y, w, h, hwnd,
+        reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)), nullptr, nullptr);
+}
+
+void SignOnCreate(HWND hwnd)
 {
     AddLabel(hwnd, 20, 20, 120, 20, L"Файл для подписи:");
     AddEdit(hwnd, IDC_FILEPATH_EDIT, 20, 40, 560, 24);
-    CreateWindowW(L"BUTTON", L"Обзор", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 590, 40, 90, 24, hwnd, reinterpret_cast<HMENU>(IDC_BROWSE_BUTTON), nullptr, nullptr);
-    CreateWindowW(L"BUTTON", L"Подписать", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON, 690, 40, 110, 24, hwnd, reinterpret_cast<HMENU>(IDC_SIGN_BUTTON), nullptr, nullptr);
+    AddButton(hwnd, IDC_BROWSE_BUTTON, 590, 40, 90, 24, L"Обзор");
+    AddButton(hwnd, IDC_SIGN_BUTTON, 690, 40, 110, 24, L"Подписать", BS_DEFPUSHBUTTON);
 
     AddLabel(hwnd, 20, 80, 120, 20, L"Приватный ключ (hex):");
     AddEdit(hwnd, IDC_PRIVATE_KEY, 20, 100, 380, 24);
@@ -110,8 +153,8 @@ void OnCreate(HWND hwnd)
     }
     SendMessageW(comboHash, CB_SETCURSEL, 0, 0);
 
-    CreateWindowW(L"BUTTON", L"Усиленная случайность", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 20, 140, 200, 20, hwnd, reinterpret_cast<HMENU>(IDC_RANDOM_CHECK), nullptr, nullptr);
-    CreateWindowW(L"BUTTON", L"Доп. настройки", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 240, 136, 140, 24, hwnd, reinterpret_cast<HMENU>(IDC_SETTINGS_BUTTON), nullptr, nullptr);
+    AddButton(hwnd, IDC_RANDOM_CHECK, 20, 140, 200, 20, L"Усиленная случайность", BS_AUTOCHECKBOX);
+    AddButton(hwnd, IDC_SETTINGS_BUTTON, 240, 136, 140, 24, L"Доп. настройки");
 
     AddLabel(hwnd, 20, 180, 140, 20, L"Публичный ключ:");
     AddEdit(hwnd, IDC_PUBLIC_KEY_BOX, 20, 200, 780, 24, ES_READONLY);
@@ -123,7 +166,10 @@ void OnCreate(HWND hwnd)
 
     AddLabel(hwnd, 20, 400, 120, 20, L"Статус:");
     AddEdit(hwnd, IDC_STATUS_TEXT, 20, 420, 520, 24, ES_READONLY);
-    CreateWindowW(L"BUTTON", L"Сохранить подпись", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 560, 418, 240, 26, hwnd, reinterpret_cast<HMENU>(IDC_SAVE_SIGNATURE), nullptr, nullptr);
+    AddButton(hwnd, IDC_SAVE_SIGNATURE, 560, 418, 240, 26, L"Сохранить подпись");
+    AddLabel(hwnd, 560, 20, 240, 20, L"Текущий пользователь:");
+    AddEdit(hwnd, IDC_ACTIVE_USER, 560, 40, 240, 24, ES_READONLY);
+    UpdateActiveUserLabel(hwnd);
 }
 
 std::wstring GetWindowTextString(HWND hwnd, int controlId)
@@ -170,6 +216,31 @@ void BrowseFile(HWND hwnd)
         }
         CoUninitialize();
     }
+}
+
+void UpdateActiveUserLabel(HWND hwnd)
+{
+    SetWindowTextString(hwnd, IDC_ACTIVE_USER, g_activeUser);
+    if (!g_savedPrivateKey.empty())
+    {
+        SetWindowTextString(hwnd, IDC_PRIVATE_KEY, g_savedPrivateKey);
+    }
+}
+
+void RefreshUserList(HWND hwnd, int controlId)
+{
+    HWND list = GetDlgItem(hwnd, controlId);
+    SendMessageW(list, LB_RESETCONTENT, 0, 0);
+    for (const auto& user : g_users)
+    {
+        SendMessageW(list, LB_ADDSTRING, 0, reinterpret_cast<LPARAM>(user.c_str()));
+    }
+}
+
+void SyncKeyFields(HWND hwnd)
+{
+    SetWindowTextString(hwnd, IDC_KEY_PRIVATE, g_savedPrivateKey);
+    SetWindowTextString(hwnd, IDC_KEY_PUBLIC, g_savedPublicKey);
 }
 
 void UpdateSignature(HWND hwnd)
@@ -250,7 +321,7 @@ void ShowSettings(HWND hwnd)
         L"О программе", MB_OK | MB_ICONINFORMATION);
 }
 
-void OnCommand(HWND hwnd, WPARAM wParam)
+void SignOnCommand(HWND hwnd, WPARAM wParam)
 {
     switch (LOWORD(wParam))
     {
@@ -271,18 +342,285 @@ void OnCommand(HWND hwnd, WPARAM wParam)
     }
 }
 
-LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK SignWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
     case WM_CREATE:
-        OnCreate(hwnd);
+        g_signatureWindow = hwnd;
+        SignOnCreate(hwnd);
         return 0;
     case WM_COMMAND:
-        OnCommand(hwnd, wParam);
+        SignOnCommand(hwnd, wParam);
+        return 0;
+    case WM_DESTROY:
+        g_signatureWindow = nullptr;
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProc(hwnd, message, wParam, lParam);
+}
+
+void OpenSignatureWindow()
+{
+    if (g_signatureWindow)
+    {
+        ShowWindow(g_signatureWindow, SW_SHOW);
+        SetForegroundWindow(g_signatureWindow);
+        return;
+    }
+
+    HWND hWnd = CreateWindowExW(
+        0,
+        SIGN_CLASS_NAME,
+        L"ГОСТ 34.10 ЭЦП - Настраиваемая демо",
+        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
+        CW_USEDEFAULT, 0, 840, 480,
+        nullptr,
+        nullptr,
+        g_hInstance,
+        nullptr);
+
+    if (hWnd)
+    {
+        ShowWindow(hWnd, SW_SHOW);
+        UpdateWindow(hWnd);
+    }
+}
+
+void MenuOnCreate(HWND hwnd)
+{
+    AddLabel(hwnd, 20, 20, 440, 20, L"Демо с несколькими формами:");
+    AddLabel(hwnd, 20, 40, 440, 20, L"1. Создание пользователя");
+    AddLabel(hwnd, 20, 60, 440, 20, L"2. Выбор пользователя");
+    AddLabel(hwnd, 20, 80, 440, 20, L"3. Работа с ключами и подпись файла");
+
+    AddLabel(hwnd, 20, 120, 200, 20, L"Текущий пользователь:");
+    AddEdit(hwnd, IDC_MENU_ACTIVE_USER, 200, 116, 280, 24, ES_READONLY);
+    SetWindowTextString(hwnd, IDC_MENU_ACTIVE_USER, g_activeUser);
+
+    AddButton(hwnd, IDC_MENU_CREATE_USER, 20, 160, 220, 30, L"Создать пользователя");
+    AddButton(hwnd, IDC_MENU_SELECT_USER, 260, 160, 220, 30, L"Выбрать пользователя");
+    AddButton(hwnd, IDC_MENU_KEY_WINDOW, 20, 200, 220, 30, L"Работа с ключами");
+    AddButton(hwnd, IDC_MENU_OPEN_SIGN, 260, 200, 220, 30, L"Форма подписи файла");
+}
+
+void MenuOnCommand(HWND hwnd, WPARAM wParam)
+{
+    switch (LOWORD(wParam))
+    {
+    case IDC_MENU_CREATE_USER:
+        CreateWindowExW(0, CREATE_USER_CLASS, L"Создание пользователя", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+            CW_USEDEFAULT, CW_USEDEFAULT, 520, 320, hwnd, nullptr, g_hInstance, nullptr);
+        break;
+    case IDC_MENU_SELECT_USER:
+        CreateWindowExW(0, SELECT_USER_CLASS, L"Выбор пользователя", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+            CW_USEDEFAULT, CW_USEDEFAULT, 420, 340, hwnd, nullptr, g_hInstance, nullptr);
+        break;
+    case IDC_MENU_KEY_WINDOW:
+        CreateWindowExW(0, KEY_WINDOW_CLASS, L"Работа с ключами", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+            CW_USEDEFAULT, CW_USEDEFAULT, 560, 320, hwnd, nullptr, g_hInstance, nullptr);
+        break;
+    case IDC_MENU_OPEN_SIGN:
+        OpenSignatureWindow();
+        break;
+    default:
+        break;
+    }
+}
+
+LRESULT CALLBACK MenuWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_CREATE:
+        MenuOnCreate(hwnd);
+        return 0;
+    case WM_COMMAND:
+        MenuOnCommand(hwnd, wParam);
+        return 0;
+    case WM_ACTIVATE:
+        SetWindowTextString(hwnd, IDC_MENU_ACTIVE_USER, g_activeUser);
         return 0;
     case WM_DESTROY:
         PostQuitMessage(0);
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProc(hwnd, message, wParam, lParam);
+}
+
+void CreateUserOnCreate(HWND hwnd)
+{
+    AddLabel(hwnd, 20, 20, 160, 20, L"Имя пользователя:");
+    AddEdit(hwnd, IDC_CREATE_USER_NAME, 20, 40, 320, 24);
+    AddButton(hwnd, IDC_CREATE_USER_SAVE, 360, 38, 120, 28, L"Создать");
+
+    AddLabel(hwnd, 20, 80, 200, 20, L"Уже созданные:");
+    CreateWindowW(L"LISTBOX", nullptr, WS_CHILD | WS_VISIBLE | WS_BORDER | LBS_STANDARD,
+        20, 100, 320, 150, hwnd, reinterpret_cast<HMENU>(IDC_CREATE_USER_LIST), nullptr, nullptr);
+    AddEdit(hwnd, IDC_CREATE_USER_STATUS, 20, 260, 460, 24, ES_READONLY);
+    RefreshUserList(hwnd, IDC_CREATE_USER_LIST);
+}
+
+void CreateUserOnCommand(HWND hwnd, WPARAM wParam)
+{
+    switch (LOWORD(wParam))
+    {
+    case IDC_CREATE_USER_SAVE:
+    {
+        std::wstring name = GetWindowTextString(hwnd, IDC_CREATE_USER_NAME);
+        if (name.empty())
+        {
+            SetWindowTextString(hwnd, IDC_CREATE_USER_STATUS, L"Введите имя пользователя");
+            return;
+        }
+
+        auto it = std::find(g_users.begin(), g_users.end(), name);
+        if (it == g_users.end())
+        {
+            g_users.push_back(name);
+            RefreshUserList(hwnd, IDC_CREATE_USER_LIST);
+            SetWindowTextString(hwnd, IDC_CREATE_USER_STATUS, L"Пользователь добавлен");
+        }
+        else
+        {
+            SetWindowTextString(hwnd, IDC_CREATE_USER_STATUS, L"Такой пользователь уже есть");
+        }
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+LRESULT CALLBACK CreateUserWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_CREATE:
+        CreateUserOnCreate(hwnd);
+        return 0;
+    case WM_COMMAND:
+        CreateUserOnCommand(hwnd, wParam);
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProc(hwnd, message, wParam, lParam);
+}
+
+void SelectUserOnCreate(HWND hwnd)
+{
+    AddLabel(hwnd, 20, 20, 200, 20, L"Выберите пользователя:");
+    CreateWindowW(L"LISTBOX", nullptr, WS_CHILD | WS_VISIBLE | WS_BORDER | LBS_STANDARD,
+        20, 40, 360, 200, hwnd, reinterpret_cast<HMENU>(IDC_SELECT_USER_LIST), nullptr, nullptr);
+    AddButton(hwnd, IDC_SELECT_USER_APPLY, 20, 250, 160, 28, L"Сделать активным");
+    AddEdit(hwnd, IDC_SELECT_USER_STATUS, 200, 250, 180, 24, ES_READONLY);
+    RefreshUserList(hwnd, IDC_SELECT_USER_LIST);
+}
+
+void SelectUserOnCommand(HWND hwnd, WPARAM wParam)
+{
+    switch (LOWORD(wParam))
+    {
+    case IDC_SELECT_USER_APPLY:
+    {
+        HWND list = GetDlgItem(hwnd, IDC_SELECT_USER_LIST);
+        int index = static_cast<int>(SendMessageW(list, LB_GETCURSEL, 0, 0));
+        if (index == LB_ERR)
+        {
+            SetWindowTextString(hwnd, IDC_SELECT_USER_STATUS, L"Сначала выберите запись");
+            return;
+        }
+
+        wchar_t buffer[256]{};
+        SendMessageW(list, LB_GETTEXT, index, reinterpret_cast<LPARAM>(buffer));
+        g_activeUser = buffer;
+        SetWindowTextString(hwnd, IDC_SELECT_USER_STATUS, L"Активный пользователь обновлен");
+
+        if (g_signatureWindow)
+        {
+            UpdateActiveUserLabel(g_signatureWindow);
+        }
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+LRESULT CALLBACK SelectUserWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_CREATE:
+        SelectUserOnCreate(hwnd);
+        return 0;
+    case WM_COMMAND:
+        SelectUserOnCommand(hwnd, wParam);
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProc(hwnd, message, wParam, lParam);
+}
+
+void KeyOnCreate(HWND hwnd)
+{
+    AddLabel(hwnd, 20, 20, 160, 20, L"Приватный ключ:");
+    AddEdit(hwnd, IDC_KEY_PRIVATE, 20, 40, 500, 24);
+
+    AddLabel(hwnd, 20, 80, 160, 20, L"Публичный ключ:");
+    AddEdit(hwnd, IDC_KEY_PUBLIC, 20, 100, 500, 24, ES_READONLY);
+
+    AddButton(hwnd, IDC_KEY_GENERATE, 20, 140, 200, 28, L"Сгенерировать демо");
+    AddButton(hwnd, IDC_KEY_SAVE, 240, 140, 200, 28, L"Сохранить ключи");
+    AddEdit(hwnd, IDC_KEY_STATUS, 20, 190, 500, 24, ES_READONLY);
+    SyncKeyFields(hwnd);
+}
+
+void KeyOnCommand(HWND hwnd, WPARAM wParam)
+{
+    switch (LOWORD(wParam))
+    {
+    case IDC_KEY_GENERATE:
+        g_savedPrivateKey = L"00112233445566778899AABBCCDDEEFF";
+        g_savedPublicKey = L"A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6";
+        SyncKeyFields(hwnd);
+        SetWindowTextString(hwnd, IDC_KEY_STATUS, L"Демо-ключи сгенерированы");
+        if (g_signatureWindow)
+        {
+            SetWindowTextString(g_signatureWindow, IDC_PRIVATE_KEY, g_savedPrivateKey);
+            SetWindowTextString(g_signatureWindow, IDC_PUBLIC_KEY_BOX, g_savedPublicKey);
+        }
+        break;
+    case IDC_KEY_SAVE:
+        g_savedPrivateKey = GetWindowTextString(hwnd, IDC_KEY_PRIVATE);
+        g_savedPublicKey = GetWindowTextString(hwnd, IDC_KEY_PUBLIC);
+        SetWindowTextString(hwnd, IDC_KEY_STATUS, L"Ключи сохранены в сессию");
+        if (g_signatureWindow)
+        {
+            SetWindowTextString(g_signatureWindow, IDC_PRIVATE_KEY, g_savedPrivateKey);
+            SetWindowTextString(g_signatureWindow, IDC_PUBLIC_KEY_BOX, g_savedPublicKey);
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+LRESULT CALLBACK KeyWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_CREATE:
+        KeyOnCreate(hwnd);
+        return 0;
+    case WM_COMMAND:
+        KeyOnCommand(hwnd, wParam);
         return 0;
     default:
         break;
