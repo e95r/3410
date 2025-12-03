@@ -4,6 +4,7 @@
 #include <shellapi.h>
 #include <string>
 #include <vector>
+#include <fstream>
 #include "../include/GOSTSigner.h"
 #include "../include/StringUtil.h"
 #include "../resource.h"
@@ -129,8 +130,9 @@ std::wstring GetWindowTextString(HWND hwnd, int controlId)
 {
     HWND control = GetDlgItem(hwnd, controlId);
     int length = GetWindowTextLengthW(control);
-    std::wstring buffer(length, L'\0');
+    std::wstring buffer(length + 1, L'\0');
     GetWindowTextW(control, buffer.data(), length + 1);
+    buffer.resize(length);
     return buffer;
 }
 
