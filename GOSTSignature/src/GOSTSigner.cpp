@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <chrono>
 
+#pragma execution_character_set("utf-8")
 #pragma comment(lib, "bcrypt.lib")
 
 namespace gost
