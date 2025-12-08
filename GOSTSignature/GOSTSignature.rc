@@ -1,6 +1,6 @@
 #pragma code_page(65001)
 #include <windows.h>
-#include "resource.h"
+#include "GOSTSignature.h"
 
 LANGUAGE LANG_RUSSIAN, SUBLANG_DEFAULT
 
