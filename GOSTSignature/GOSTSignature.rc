@@ -1,5 +1,153 @@
-#include "resource.h"
+#pragma code_page(65001)
 #include <windows.h>
+#include "resource.h"
+
+LANGUAGE LANG_RUSSIAN, SUBLANG_DEFAULT
 
 IDI_APP_ICON ICON "IDI_APP_ICON.ico"
 
+// ---------------- LOGIN ----------------
+IDD_LOGIN DIALOGEX 0, 0, 260, 150
+STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Вход"
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT       "Существующие пользователи:", -1, 6, 6, 248, 8
+    COMBOBOX    IDC_CMB_USERS, 6, 18, 248, 300, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT       "Фильтр:", -1, 6, 44, 30, 8
+    EDITTEXT    IDC_EDIT_USER_FILTER, 40, 42, 214, 14, ES_AUTOHSCROLL
+    LTEXT       "Новый пользователь:", -1, 6, 66, 100, 8
+    EDITTEXT    IDC_EDIT_NEWUSER, 6, 78, 200, 14, ES_AUTOHSCROLL
+    PUSHBUTTON  "Добавить", IDC_BTN_ADDUSER, 210, 78, 44, 14
+    DEFPUSHBUTTON "ОК", IDOK, 104, 112, 60, 14
+    PUSHBUTTON  "Отмена", IDCANCEL, 174, 112, 60, 14
+END
+
+// ---------------- MAIN (HUB) ----------------
+IDD_MAIN DIALOGEX 0, 0, 220, 140
+STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Криптоцентр"
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT       "Пользователь:", -1, 6, 6, 70, 8
+    LTEXT       "", IDC_STATIC_USER, 80, 6, 134, 8
+    PUSHBUTTON  "Сменить пользователя", IDC_BTN_SWITCHUSER, 6, 20, 208, 16
+    GROUPBOX    "Разделы", -1, 6, 40, 208, 64
+    PUSHBUTTON  "Ключи", IDC_BTN_OPEN_KEYS, 14, 56, 60, 18
+    PUSHBUTTON  "Чат", IDC_BTN_OPEN_CHAT, 80, 56, 60, 18
+    PUSHBUTTON  "Файлы", IDC_BTN_OPEN_FILES, 146, 56, 60, 18
+    DEFPUSHBUTTON "Выход", IDCANCEL, 154, 112, 60, 18
+END
+
+// ---------------- SHARE ----------------
+IDD_SHARE DIALOGEX 0, 0, 240, 120
+STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Отправка ключа"
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT       "Выберите адресата:", -1, 6, 6, 120, 8
+    COMBOBOX    IDC_CMB_TARGET, 6, 18, 228, 200, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT       "Фильтр:", -1, 6, 44, 30, 8
+    EDITTEXT    IDC_EDIT_TARGET_FILTER, 40, 42, 194, 14, ES_AUTOHSCROLL
+    DEFPUSHBUTTON "Отправить", IDOK, 86, 86, 60, 16
+    PUSHBUTTON  "Отмена", IDCANCEL, 154, 86, 60, 16
+END
+
+// ---------------- KEYS ----------------
+IDD_KEYS DIALOGEX 0, 0, 520, 246
+STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Ключи"
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT       "Пользователь:", -1, 8, 6, 60, 8
+    LTEXT       "", IDC_STATIC_USER, 74, 6, 438, 8
+
+    LTEXT       "Абонент:", -1, 8, 24, 44, 8
+    COMBOBOX    IDC_CMB_PEER, 56, 22, 200, 200, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT       "Поиск:", -1, 264, 24, 32, 8
+    EDITTEXT    IDC_EDIT_PEER_FILTER, 300, 22, 212, 14, ES_AUTOHSCROLL
+
+    LTEXT       "Ключ:", -1, 8, 48, 24, 8
+    EDITTEXT    IDC_EDIT_KEY, 56, 46, 320, 14, ES_AUTOHSCROLL
+    CONTROL     "HEX", IDC_CHK_KEY_HEX, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 380, 46, 40, 14
+    PUSHBUTTON  "Сгенерировать", IDC_BTN_GENKEY, 424, 46, 88, 14
+
+    LTEXT       "Ваши ключи с абонентом:", -1, 8, 70, 160, 8
+    LISTBOX     IDC_LIST_KEYS, 8, 82, 504, 92, LBS_NOTIFY | WS_VSCROLL | WS_BORDER
+
+    DEFPUSHBUTTON "Сохранить и отправить", IDC_BTN_SAVEKEY, 8, 182, 160, 22, BS_MULTILINE
+    PUSHBUTTON    "Удалить у обоих", IDC_BTN_DELKEY, 178, 182, 160, 22
+    PUSHBUTTON    "Сменить пользователя", IDC_BTN_SWITCHUSER, 348, 182, 164, 22, BS_MULTILINE
+
+    PUSHBUTTON    "Закрыть", IDCANCEL, 215, 212, 90, 22
+END
+
+// ---------------- CHAT ----------------
+IDD_CHAT DIALOGEX 0, 0, 420, 260
+STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Чат"
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT       "Пользователь:", -1, 6, 6, 60, 8
+    LTEXT       "", IDC_STATIC_USER, 70, 6, 340, 8
+
+    LTEXT       "Абонент:", -1, 6, 22, 40, 8
+    COMBOBOX    IDC_CMB_PEER_CHAT, 50, 20, 160, 200, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT       "Поиск:", -1, 214, 22, 30, 8
+    EDITTEXT    IDC_EDIT_PEER_FILTER_CHAT, 246, 20, 80, 14, ES_AUTOHSCROLL
+    LTEXT       "Ключ:", -1, 330, 22, 22, 8
+    COMBOBOX    IDC_LIST_KEYS_CHAT, 354, 20, 60, 200, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+
+    LTEXT       "Входящие от абонента:", -1, 6, 42, 120, 8
+    LISTBOX     IDC_CHAT_LIST, 6, 54, 408, 96, LBS_NOTIFY | WS_VSCROLL | WS_BORDER
+    PUSHBUTTON  "Обновить", IDC_CHAT_REFRESH, 6, 152, 60, 16
+    PUSHBUTTON  "Расшифровать выбранное", IDC_CHAT_DECRYPT_ONE, 70, 152, 120, 16
+    PUSHBUTTON  "Очистить входящие", IDC_CHAT_CLEAR_IN, 194, 152, 100, 16
+    PUSHBUTTON  "Очистить исходящие", IDC_CHAT_CLEAR_OUT, 298, 152, 116, 16
+
+    EDITTEXT    IDC_CHAT_DEC_OUT, 6, 172, 408, 36, ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL | ES_READONLY | WS_BORDER
+
+    EDITTEXT    IDC_CHAT_INPUT, 6, 212, 324, 16, ES_AUTOHSCROLL
+    DEFPUSHBUTTON "Отправить", IDC_CHAT_SEND, 334, 212, 80, 16
+
+    PUSHBUTTON  "Сменить пользователя", IDC_BTN_SWITCHUSER, 6, 236, 120, 16
+END
+
+// ---------------- FILES ----------------
+IDD_FILES DIALOGEX 0, 0, 460, 300
+STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Файлы"
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT       "Пользователь:", -1, 6, 6, 60, 8
+    LTEXT       "", IDC_STATIC_USER, 70, 6, 380, 8
+
+    LTEXT       "Входной файл:", -1, 6, 22, 60, 8
+    EDITTEXT    IDC_EDIT_IN, 70, 20, 300, 14, ES_AUTOHSCROLL
+    PUSHBUTTON  "...", IDC_BTN_BROWSE_IN, 374, 20, 20, 14
+    LTEXT       "Выходной файл:", -1, 6, 40, 64, 8
+    EDITTEXT    IDC_EDIT_OUT, 70, 38, 300, 14, ES_AUTOHSCROLL
+    PUSHBUTTON  "...", IDC_BTN_BROWSE_OUT, 374, 38, 20, 14
+
+    GROUPBOX    "Абонент и ключ", -1, 6, 58, 448, 52
+    LTEXT       "Абонент:", -1, 14, 72, 40, 8
+    COMBOBOX    IDC_CMB_PEER_FILES, 58, 70, 176, 200, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT       "Ключ:", -1, 240, 72, 24, 8
+    COMBOBOX    IDC_LIST_KEYS_FILES, 268, 70, 176, 200, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+
+    GROUPBOX    "Параметры ввода/вывода", -1, 6, 112, 448, 52
+    CONTROL     "HEX как текст (для предпросмотра)", IDC_CHK_MSG_HEX, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 14, 126, 200, 10
+
+    LTEXT       "Открытый текст:", -1, 6, 168, 64, 8
+    EDITTEXT    IDC_EDIT_PLAINTEXT, 6, 180, 220, 58, ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL | WS_BORDER
+    LTEXT       "Шифртекст (HEX контейнер):", -1, 232, 168, 120, 8
+    EDITTEXT    IDC_EDIT_CIPHERTEXT, 232, 180, 222, 58, ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL | WS_BORDER | ES_READONLY
+
+    DEFPUSHBUTTON "Шифровать", IDC_BTN_ENCRYPT, 100, 244, 100, 18
+    PUSHBUTTON    "Расшифровать", IDC_BTN_DECRYPT, 260, 244, 100, 18
+
+    GROUPBOX    "Работа с ключом вручную", -1, 6, 264, 448, 30
+    EDITTEXT    IDC_EDIT_KEY, 14, 276, 320, 14, ES_AUTOHSCROLL
+    CONTROL     "HEX", IDC_CHK_KEY_HEX, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 340, 276, 30, 14
+    PUSHBUTTON  "Сгенерировать", IDC_BTN_GENKEY, 374, 276, 70, 14
+END
