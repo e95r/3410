@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <filesystem>
 #include <algorithm>
 #include "../include/GOSTSigner.h"
 #include "../include/StringUtil.h"
@@ -300,11 +301,20 @@ void SaveSignature(HWND hwnd)
                     PWSTR pszFilePath = nullptr;
                     if (SUCCEEDED(pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath)))
                     {
-                        std::ofstream out(gost::ToNarrow(pszFilePath), std::ios::out | std::ios::binary);
-                        out << gost::ToNarrow(signature);
+                        std::filesystem::path filePath{ pszFilePath };
+                        std::ofstream out(filePath, std::ios::out | std::ios::binary);
+                        if (out)
+                        {
+                            auto utf8Signature = gost::ToNarrow(signature);
+                            out.write(utf8Signature.data(), static_cast<std::streamsize>(utf8Signature.size()));
+                            SetWindowTextString(hwnd, IDC_STATUS_TEXT, L"Подпись сохранена");
+                        }
+                        else
+                        {
+                            SetWindowTextString(hwnd, IDC_STATUS_TEXT, L"Не удалось сохранить подпись");
+                        }
                         out.close();
                         CoTaskMemFree(pszFilePath);
-                        SetWindowTextString(hwnd, IDC_STATUS_TEXT, L"Подпись сохранена");
                     }
                     pItem->Release();
                 }

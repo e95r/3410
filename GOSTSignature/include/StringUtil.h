@@ -4,17 +4,44 @@
 #include <vector>
 #include <sstream>
 #include <iomanip>
+#include <windows.h>
 
 namespace gost
 {
     inline std::wstring ToWide(const std::string& value)
     {
-        return std::wstring(value.begin(), value.end());
+        if (value.empty())
+        {
+            return {};
+        }
+
+        int required = MultiByteToWideChar(CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()), nullptr, 0);
+        if (required <= 0)
+        {
+            return {};
+        }
+
+        std::wstring output(static_cast<size_t>(required), L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()), output.data(), required);
+        return output;
     }
 
     inline std::string ToNarrow(const std::wstring& value)
     {
-        return std::string(value.begin(), value.end());
+        if (value.empty())
+        {
+            return {};
+        }
+
+        int required = WideCharToMultiByte(CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()), nullptr, 0, nullptr, nullptr);
+        if (required <= 0)
+        {
+            return {};
+        }
+
+        std::string output(static_cast<size_t>(required), '\0');
+        WideCharToMultiByte(CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()), output.data(), required, nullptr, nullptr);
+        return output;
     }
 
     inline std::wstring FormatHex(const std::vector<unsigned char>& data)
